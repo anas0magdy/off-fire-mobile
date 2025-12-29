@@ -2,6 +2,7 @@
   "expo": {
     "name": "off-fire-mobile",
     "slug": "off-fire-mobile",
+    "scheme": "offfire",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -24,6 +25,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router"
+    ]
   }
 }
