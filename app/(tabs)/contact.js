@@ -1,195 +1,164 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
-  View, Text, TouchableOpacity, StyleSheet, StatusBar, 
-  Linking, ScrollView, TextInput, KeyboardAvoidingView, Platform, Dimensions 
+  View, Text, TouchableOpacity, StyleSheet, 
+  StatusBar, Linking, ScrollView, I18nManager 
 } from 'react-native';
-import { Phone, MessageCircle, Mail, MapPin, Clock, Send, Globe } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS } from '../../constants/data';
-import MainButton from '../../components/MainButton';
-
-const { width } = Dimensions.get('window');
+import { Phone, Mail, MapPin, Facebook, Instagram, Linkedin, Send, ArrowRight } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
+import { COLORS } from '../../constants/theme';
 
 export default function ContactScreen() {
-  const [name, setName] = useState('');
-  const [message, setMessage] = useState('');
+  const { t } = useTranslation();
+  const isRTL = I18nManager.isRTL;
 
-  const handleCall = () => Linking.openURL(`tel:+966500000000`);
-  const handleWhatsApp = () => Linking.openURL(`https://wa.me/966500000000`);
-  const handleEmail = () => Linking.openURL(`mailto:info@offfire.online`);
-  const handleWebsite = () => Linking.openURL(`https://offfire.online`);
+  const textAlignment = { textAlign: 'left' };
+  const iconTransform = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
+
+  // دالة لفتح الروابط (اتصال، إيميل، خريطة)
+  const handlePress = (type, value) => {
+    let url = '';
+    switch (type) {
+      case 'phone': url = `tel:${value}`; break;
+      case 'email': url = `mailto:${value}`; break;
+      case 'map': url = 'https://maps.google.com/?q=Riyadh'; break; // رابط تجريبي للرياض
+      default: break;
+    }
+    Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
+  };
+
+  const ContactCard = ({ icon: Icon, title, desc, action, value }) => (
+    <TouchableOpacity 
+      style={styles.card}
+      onPress={() => handlePress(action, value)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.iconBox}>
+        <Icon size={24} color={COLORS.primary} />
+      </View>
+      <View style={styles.cardContent}>
+        <Text style={[styles.cardTitle, textAlignment]}>{title}</Text>
+        <Text style={[styles.cardDesc, textAlignment]}>{desc}</Text>
+        <Text style={[styles.cardValue, textAlignment]}>{value}</Text>
+      </View>
+      <View style={styles.arrowBox}>
+        <ArrowRight size={20} color={COLORS.textSecondary} style={iconTransform} />
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 }}
-    >
-      <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.dark} translucent />
-        
-        {/* Header Background Gradient */}
-        <LinearGradient
-            colors={[COLORS.darker, COLORS.dark]}
-            style={StyleSheet.absoluteFill}
-        />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.title, textAlignment]}>{t('contact_title')}</Text>
+          <Text style={[styles.subtitle, textAlignment]}>{t('contact_subtitle')}</Text>
+        </View>
+
+        {/* Contact Methods */}
+        <View style={styles.cardsContainer}>
+          <ContactCard 
+            icon={Phone} 
+            title={t('phone_title')} 
+            desc={t('phone_desc')} 
+            value="+966 50 000 0000" 
+            action="phone" 
+          />
           
-          {/* 1. Header Section */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>تواصل معنا</Text>
-            <Text style={styles.headerSubtitle}>فريقنا جاهز للرد على استفساراتك 24/7</Text>
+          <ContactCard 
+            icon={Mail} 
+            title={t('email_title')} 
+            desc={t('email_desc')} 
+            value="info@offfire.online" 
+            action="email" 
+          />
+          
+          <ContactCard 
+            icon={MapPin} 
+            title={t('location_title')} 
+            desc={t('location_desc')} 
+            value="Olaya St, Riyadh" 
+            action="map" 
+          />
+        </View>
+
+        {/* Social Media */}
+        <View style={styles.socialSection}>
+          <Text style={styles.socialTitle}>{t('follow_us')}</Text>
+          <View style={styles.socialIcons}>
+            <TouchableOpacity style={styles.socialBtn}><Facebook size={24} color="#1877F2" /></TouchableOpacity>
+            <TouchableOpacity style={styles.socialBtn}><Instagram size={24} color="#E4405F" /></TouchableOpacity>
+            <TouchableOpacity style={styles.socialBtn}><Linkedin size={24} color="#0A66C2" /></TouchableOpacity>
           </View>
+        </View>
 
-          {/* 2. Quick Actions Grid */}
-          <View style={styles.gridContainer}>
-            <TouchableOpacity style={styles.actionCard} onPress={handleCall} activeOpacity={0.8}>
-                <View style={[styles.iconBox, { backgroundColor: 'rgba(59, 130, 246, 0.15)', borderColor: '#3b82f6' }]}>
-                    <Phone size={24} color="#3b82f6" />
-                </View>
-                <Text style={styles.actionLabel}>اتصال</Text>
-            </TouchableOpacity>
+        {/* Send Message CTA */}
+        <TouchableOpacity style={styles.messageBtn} activeOpacity={0.8}>
+           <Text style={styles.messageBtnText}>{t('send_message')}</Text>
+           <Send size={20} color={COLORS.background} style={iconTransform} />
+        </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionCard} onPress={handleWhatsApp} activeOpacity={0.8}>
-                <View style={[styles.iconBox, { backgroundColor: 'rgba(34, 197, 94, 0.15)', borderColor: '#22c55e' }]}>
-                    <MessageCircle size={24} color="#22c55e" />
-                </View>
-                <Text style={styles.actionLabel}>واتساب</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionCard} onPress={handleEmail} activeOpacity={0.8}>
-                <View style={[styles.iconBox, { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: COLORS.primary }]}>
-                    <Mail size={24} color={COLORS.primary} />
-                </View>
-                <Text style={styles.actionLabel}>ايميل</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionCard} onPress={handleWebsite} activeOpacity={0.8}>
-                <View style={[styles.iconBox, { backgroundColor: 'rgba(148, 163, 184, 0.15)', borderColor: COLORS.subText }]}>
-                    <Globe size={24} color={COLORS.subText} />
-                </View>
-                <Text style={styles.actionLabel}>الموقع</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 3. Info Card (Map & Time) */}
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-                <View style={styles.miniIcon}><MapPin size={18} color={COLORS.white}/></View>
-                <View style={{flex: 1}}>
-                    <Text style={styles.infoLabel}>مقرنا الرئيسي</Text>
-                    <Text style={styles.infoValue}>الرياض، طريق الملك فهد، حي العقيق</Text>
-                </View>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.infoRow}>
-                <View style={styles.miniIcon}><Clock size={18} color={COLORS.white}/></View>
-                <View style={{flex: 1}}>
-                    <Text style={styles.infoLabel}>ساعات العمل</Text>
-                    <Text style={styles.infoValue}>السبت - الخميس: 9:00 ص - 6:00 م</Text>
-                </View>
-            </View>
-          </View>
-
-          {/* 4. Contact Form */}
-          <View style={styles.formContainer}>
-              <Text style={styles.formTitle}>أرسل رسالة سريعة</Text>
-              
-              <Text style={styles.inputLabel}>الاسم</Text>
-              <TextInput 
-                  style={styles.input} 
-                  placeholder="الاسم الكريم" 
-                  placeholderTextColor={COLORS.subText} 
-                  textAlign="right"
-                  value={name}
-                  onChangeText={setName}
-              />
-              
-              <Text style={styles.inputLabel}>الرسالة</Text>
-              <TextInput 
-                  style={[styles.input, styles.textArea]} 
-                  placeholder="كيف يمكننا مساعدتك؟" 
-                  placeholderTextColor={COLORS.subText} 
-                  multiline
-                  numberOfLines={4}
-                  textAlign="right"
-                  textAlignVertical="top"
-                  value={message}
-                  onChangeText={setMessage}
-              />
-              
-              <View style={{ marginTop: 10 }}>
-                <MainButton 
-                    title="إرسال الرسالة" 
-                    onPress={() => alert('تم الإرسال بنجاح!')}
-                    icon={false}
-                />
-              </View>
-          </View>
-
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.dark },
-  scrollContent: { padding: 20, paddingBottom: 100, paddingTop: 60 },
-  
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scrollContent: { padding: 20, paddingTop: 60, paddingBottom: 40 },
+
   header: { marginBottom: 30 },
-  headerTitle: { color: COLORS.white, fontSize: 32, fontWeight: 'bold', marginBottom: 5, textAlign: 'left' },
-  headerSubtitle: { color: COLORS.subText, fontSize: 16, textAlign: 'left' },
+  title: { fontSize: 32, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 8 },
+  subtitle: { fontSize: 16, color: COLORS.textSecondary },
+
+  cardsContainer: { gap: 16, marginBottom: 40 },
   
-  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 25 },
-  actionCard: { 
-    width: '48%', 
-    backgroundColor: COLORS.card, 
-    borderRadius: 20, 
-    padding: 15, 
-    alignItems: 'center', 
+  card: {
+    backgroundColor: COLORS.surface,
+    padding: 20,
+    borderRadius: 20,
     flexDirection: 'row',
-    marginBottom: 15,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
-    gap: 12
   },
-  iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  actionLabel: { color: COLORS.white, fontSize: 14, fontWeight: 'bold' },
-
-  infoCard: { 
-    backgroundColor: COLORS.card, 
-    borderRadius: 20, 
-    padding: 20, 
-    marginBottom: 25, 
-    borderWidth: 1, 
-    borderColor: COLORS.border 
-  },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 15 },
-  miniIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.dark, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border },
-  infoLabel: { color: COLORS.subText, fontSize: 12, marginBottom: 4, textAlign: 'left' },
-  infoValue: { color: COLORS.white, fontSize: 14, fontWeight: 'bold', textAlign: 'left' },
-  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 15 },
-
-  formContainer: { 
-    backgroundColor: COLORS.card, 
-    padding: 24, 
-    borderRadius: 24, 
-    borderWidth: 1, 
-    borderColor: COLORS.primary, // حدود ذهبية خفيفة للتركيز
-  },
-  formTitle: { color: COLORS.white, fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'left' },
   
-  inputLabel: { color: COLORS.white, fontSize: 14, marginBottom: 8, fontWeight: '600', textAlign: 'left' },
-  input: { 
-    backgroundColor: COLORS.dark, 
-    color: COLORS.white, 
-    padding: 16, 
-    borderRadius: 14, 
-    marginBottom: 20, 
-    borderWidth: 1, 
-    borderColor: COLORS.border,
-    fontSize: 15
+  iconBox: {
+    width: 50, height: 50,
+    borderRadius: 15,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    alignItems: 'center', justifyContent: 'center',
+    marginEnd: 16
   },
-  textArea: { minHeight: 120 },
+  
+  cardContent: { flex: 1, alignItems: 'flex-start' },
+  cardTitle: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 4 },
+  cardDesc: { color: COLORS.textPrimary, fontSize: 16, fontWeight: 'bold', marginBottom: 2 },
+  cardValue: { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
+  
+  arrowBox: { marginStart: 10 },
+
+  socialSection: { alignItems: 'center', marginBottom: 30 },
+  socialTitle: { color: COLORS.textSecondary, marginBottom: 20, fontSize: 14 },
+  socialIcons: { flexDirection: 'row', gap: 20 },
+  socialBtn: {
+    width: 50, height: 50, borderRadius: 25,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.border
+  },
+
+  messageBtn: {
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center',
+    padding: 18, borderRadius: 16,
+    gap: 10,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 10, elevation: 5
+  },
+  messageBtnText: { color: COLORS.background, fontSize: 16, fontWeight: 'bold' }
 });

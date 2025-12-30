@@ -1,24 +1,52 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, Linking, Share, Image } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, Linking, Share, I18nManager, Alert } from 'react-native';
 import { 
   User, ChevronLeft, Shield, FileText, Info, Share2, 
-  LogOut, Star, Phone, Globe, HelpCircle 
+  LogOut, Star, Phone, Globe, Languages 
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, IMAGES } from '../../constants/data';
+import { useTranslation } from 'react-i18next'; // هوك الترجمة
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COLORS } from '../../constants/theme'; // استخدام الثيم مباشرة
 
 export default function MenuScreen() {
   const router = useRouter();
+  const { t, i18n } = useTranslation(); // استدعاء أدوات الترجمة
+
+  // دالة تغيير اللغة
+  const toggleLanguage = async () => {
+    const currentLang = i18n.language;
+    const nextLang = currentLang === 'ar' ? 'en' : 'ar';
+    const isRTL = nextLang === 'ar';
+
+    // 1. تغيير اللغة في التطبيق فوراً
+    await i18n.changeLanguage(nextLang);
+    
+    // 2. حفظ اختيار المستخدم
+    await AsyncStorage.setItem('language', nextLang);
+
+    // 3. ضبط الاتجاه (لو تغير الاتجاه لازم تنبيه المستخدم)
+    if (I18nManager.isRTL !== isRTL) {
+      I18nManager.allowRTL(isRTL);
+      I18nManager.forceRTL(isRTL);
+      
+      // بما أن expo-updates فيه مشكلة، هنطلب من المستخدم يعيد تشغيل التطبيق يدوياً
+      Alert.alert(
+        nextLang === 'ar' ? "تم تغيير اللغة" : "Language Changed",
+        nextLang === 'ar' 
+          ? "يرجى إغلاق التطبيق وفتحه مجدداً لتطبيق الاتجاه العربي بالكامل." 
+          : "Please restart the app to apply English layout correctly.",
+        [{ text: "OK" }]
+      );
+    }
+  };
 
   const handleShare = async () => {
-    try { await Share.share({ message: 'حمل تطبيق OFF FIRE ONLINE الآن!' }); } 
+    try { await Share.share({ message: 'OFF FIRE ONLINE App' }); } 
     catch (error) { console.log(error.message); }
   };
 
-  const openLink = (url) => Linking.openURL(url);
-
-  // مكون الصف (List Item)
   const MenuItem = ({ icon: Icon, title, subtitle, onPress, color = COLORS.primary, isDestructive = false }) => (
     <TouchableOpacity 
       style={styles.menuItem} 
@@ -34,77 +62,88 @@ export default function MenuScreen() {
             {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
         </View>
       </View>
-      <ChevronLeft size={18} color={COLORS.subText} />
+      {/* عكس السهم لو اللغة إنجليزي */}
+      <ChevronLeft 
+        size={18} 
+        color={COLORS.textSecondary} 
+        style={{ transform: [{ rotate: I18nManager.isRTL ? '0deg' : '180deg' }] }} 
+      />
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.dark} translucent />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} translucent />
       
-      {/* Background Gradient */}
-      <LinearGradient colors={[COLORS.darker, COLORS.dark]} style={StyleSheet.absoluteFill} />
-
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
         {/* 1. Profile Section */}
         <View style={styles.profileSection}>
             <LinearGradient
-                colors={[COLORS.card, COLORS.dark]}
+                colors={[COLORS.surface, COLORS.background]}
                 style={styles.profileCard}
             >
                 <View style={styles.avatarContainer}>
                     <User size={30} color={COLORS.primary} />
                 </View>
                 <View style={{flex: 1}}>
-                    <Text style={styles.userName}>زائر</Text>
-                    <Text style={styles.userRole}>عميل جديد</Text>
+                    <Text style={styles.userName}>{t('guest')}</Text>
+                    <Text style={styles.userRole}>{t('new_client')}</Text>
                 </View>
                 <TouchableOpacity style={styles.editBtn}>
-                    <Text style={styles.editBtnText}>تسجيل دخول</Text>
+                    <Text style={styles.editBtnText}>{t('login')}</Text>
                 </TouchableOpacity>
             </LinearGradient>
         </View>
 
-        {/* 2. General Settings */}
+        {/* 2. Language Switcher (New!) */}
         <View style={styles.sectionContainer}>
-          <Text style={styles.sectionHeader}>عام</Text>
+          <Text style={styles.sectionHeader}>{t('general')}</Text>
           <View style={styles.sectionBody}>
-             <MenuItem icon={Info} title="من نحن" subtitle="قصتنا ورؤيتنا" onPress={() => router.push('/about')} />
+             {/* زر تغيير اللغة */}
+             <MenuItem 
+                icon={Languages} 
+                title={t('change_lang')} 
+                subtitle={i18n.language === 'ar' ? 'English' : 'العربية'}
+                color={COLORS.info}
+                onPress={toggleLanguage} 
+             />
              <View style={styles.divider} />
-             <MenuItem icon={Star} title="شركاء النجاح" onPress={() => router.push('/about')} />
+             <MenuItem icon={Info} title={t('about_us')} onPress={() => router.push('/about')} />
              <View style={styles.divider} />
-             <MenuItem icon={Phone} title="تواصل معنا" onPress={() => router.push('/(tabs)/contact')} />
+             <MenuItem icon={Star} title={t('partners')} onPress={() => router.push('/about')} />
+             <View style={styles.divider} />
+             <MenuItem icon={Phone} title={t('contact')} onPress={() => router.push('/(tabs)/contact')} />
           </View>
         </View>
 
         {/* 3. App Info */}
         <View style={styles.sectionContainer}>
-          <Text style={styles.sectionHeader}>التطبيق</Text>
+          <Text style={styles.sectionHeader}>{t('app_section')}</Text>
           <View style={styles.sectionBody}>
-             <MenuItem icon={Share2} title="شارك التطبيق" color={COLORS.cta} onPress={handleShare} />
+             <MenuItem icon={Share2} title={t('share_app')} color={COLORS.secondary} onPress={handleShare} />
              <View style={styles.divider} />
-             <MenuItem icon={Globe} title="زيارة الموقع الإلكتروني" color={COLORS.cta} onPress={() => openLink('https://offfire.online')} />
+             <MenuItem icon={Globe} title={t('visit_website')} color={COLORS.secondary} onPress={() => Linking.openURL('https://offfire.online')} />
           </View>
         </View>
 
         {/* 4. Legal */}
         <View style={styles.sectionContainer}>
-          <Text style={styles.sectionHeader}>القانونية</Text>
+          <Text style={styles.sectionHeader}>{t('legal')}</Text>
           <View style={styles.sectionBody}>
-             <MenuItem icon={Shield} title="سياسة الخصوصية" color={COLORS.subText} onPress={() => {}} />
+             <MenuItem icon={Shield} title={t('privacy')} color={COLORS.textSecondary} onPress={() => {}} />
              <View style={styles.divider} />
-             <MenuItem icon={FileText} title="الشروط والأحكام" color={COLORS.subText} onPress={() => {}} />
+             <MenuItem icon={FileText} title={t('terms')} color={COLORS.textSecondary} onPress={() => {}} />
           </View>
         </View>
 
-        {/* 5. Logout / Footer */}
+        {/* 5. Logout */}
         <TouchableOpacity style={styles.logoutBtn}>
             <LogOut size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>تسجيل الخروج</Text>
+            <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>الإصدار 1.0.0 • OFF FIRE ONLINE</Text>
+        <Text style={styles.versionText}>{t('version')} 1.0.0 • OFF FIRE ONLINE</Text>
 
       </ScrollView>
     </View>
@@ -112,34 +151,32 @@ export default function MenuScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.dark },
+  container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { padding: 20, paddingTop: 60, paddingBottom: 100 },
 
-  // Profile
   profileSection: { marginBottom: 30 },
   profileCard: { 
     flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 20, 
     borderWidth: 1, borderColor: COLORS.border 
   },
   avatarContainer: { 
-    width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(245, 158, 11, 0.15)', 
+    width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.primaryDim, 
     alignItems: 'center', justifyContent: 'center', marginRight: 15, borderWidth: 1, borderColor: COLORS.primary 
   },
-  userName: { color: COLORS.white, fontSize: 20, fontWeight: 'bold', textAlign: 'left' },
-  userRole: { color: COLORS.subText, fontSize: 14, textAlign: 'left' },
+  userName: { color: COLORS.textPrimary, fontSize: 20, fontWeight: 'bold', textAlign: 'left' },
+  userRole: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'left' },
   editBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 10 },
-  editBtnText: { color: COLORS.dark, fontWeight: 'bold', fontSize: 12 },
+  editBtnText: { color: COLORS.background, fontWeight: 'bold', fontSize: 12 },
 
-  // Sections
   sectionContainer: { marginBottom: 25 },
-  sectionHeader: { color: COLORS.subText, fontSize: 14, fontWeight: 'bold', marginBottom: 10, marginLeft: 10, textAlign: 'left' },
-  sectionBody: { backgroundColor: COLORS.card, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
+  sectionHeader: { color: COLORS.textSecondary, fontSize: 14, fontWeight: 'bold', marginBottom: 10, marginLeft: 10, textAlign: 'left' },
+  sectionBody: { backgroundColor: COLORS.surface, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
   
   menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
   menuLeft: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  menuTitle: { color: COLORS.white, fontSize: 16, fontWeight: '500', textAlign: 'left' },
-  menuSubtitle: { color: COLORS.subText, fontSize: 11, textAlign: 'left' },
+  menuTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '500', textAlign: 'left' },
+  menuSubtitle: { color: COLORS.textSecondary, fontSize: 11, textAlign: 'left' },
   
   divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 60 },
 
@@ -150,5 +187,5 @@ const styles = StyleSheet.create({
   },
   logoutText: { color: '#EF4444', fontSize: 16, fontWeight: 'bold' },
 
-  versionText: { color: COLORS.subText, textAlign: 'center', fontSize: 12, opacity: 0.5 },
+  versionText: { color: COLORS.textSecondary, textAlign: 'center', fontSize: 12, opacity: 0.5 },
 });
