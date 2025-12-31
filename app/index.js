@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { View, Text, StatusBar } from 'react-native';
+import { View, Text, StatusBar, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { COLORS } from '../constants/data';
+// 👇 تأكد إن المسار ده صح ويشير لملف الثيم الجديد اللي عملناه
+import { COLORS } from '../constants/theme'; 
 import { FireExtinguisher } from 'lucide-react-native';
 
 export default function SplashScreen() {
@@ -10,24 +11,58 @@ export default function SplashScreen() {
   useEffect(() => {
     // محاكاة تحميل.. ثم الانتقال للرئيسية
     const timer = setTimeout(() => {
-      router.replace('/onboarding');
+      router.replace('/onboarding'); // تأكد إن الصفحة دي موجودة
     }, 2000);
 
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.dark, alignItems: 'center', justifyContent: 'center' }}>
-      <StatusBar barStyle="light-content" />
-      <View style={{ backgroundColor: COLORS.primary, padding: 20, borderRadius: 20, marginBottom: 20 }}>
-        <FireExtinguisher size={60} color="white" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      
+      {/* دائرة الأيقونة بشفافية عشان تليق مع الخلفية الداكنة */}
+      <View style={styles.iconBox}>
+        <FireExtinguisher size={60} color={COLORS.primary} />
       </View>
-      <Text style={{ color: COLORS.white, fontSize: 32, fontWeight: '900', letterSpacing: 1 }}>
+
+      <Text style={styles.title}>
         OFF FIRE
       </Text>
-      <Text style={{ color: COLORS.cta, fontSize: 16, letterSpacing: 8, fontWeight: 'bold', marginTop: 5 }}>
+      
+      <Text style={styles.subtitle}>
         ONLINE
       </Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    backgroundColor: COLORS.background, // الخلفية الموحدة #0B1120
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  iconBox: { 
+    backgroundColor: 'rgba(255, 255, 255, 0.05)', // لون خفيف جداً ورا الأيقونة
+    padding: 24, 
+    borderRadius: 24, 
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)'
+  },
+  title: { 
+    color: '#FFFFFF', 
+    fontSize: 32, 
+    fontWeight: '900', 
+    letterSpacing: 2 
+  },
+  subtitle: { 
+    color: COLORS.primary, // اللون الأحمر المميز
+    fontSize: 16, 
+    letterSpacing: 8, 
+    fontWeight: 'bold', 
+    marginTop: 8 
+  }
+});

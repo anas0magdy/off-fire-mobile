@@ -4,7 +4,7 @@ import {
   TouchableOpacity, ImageBackground, I18nManager 
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowRight, Check } from 'lucide-react-native'; // ArrowRight Added
+import { ArrowRight, ArrowLeft, Check } from 'lucide-react-native'; 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../constants/theme';
@@ -18,8 +18,8 @@ export default function OnboardingScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const { t } = useTranslation();
   const isRTL = I18nManager.isRTL;
+  const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
-  // تعريف الشرائح هنا عشان الترجمة تشتغل
   const SLIDES = [
     { id: 1, title: t('onb_1_title'), desc: t('onb_1_desc'), image: IMAGES.hero1 },
     { id: 2, title: t('onb_2_title'), desc: t('onb_2_desc'), image: IMAGES.hero2 },
@@ -27,15 +27,28 @@ export default function OnboardingScreen() {
   ];
 
   const handleNext = () => {
+    // لو لسه موصلناش لآخر شريحة
     if (currentIndex < SLIDES.length - 1) {
-      flatListRef.current.scrollToIndex({ index: currentIndex + 1 });
+      flatListRef.current.scrollToIndex({ 
+        index: currentIndex + 1,
+        animated: true 
+      });
     } else {
-      router.replace('/(tabs)'); // الذهاب للتطبيق الرئيسي
+      router.replace('/(tabs)');
     }
   };
 
-  const textAlignment = { textAlign: 'center' };
-  const iconTransform = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
+  // ✅ الحل السحري: دالة بتكتشف الكارت الظاهر حالياً بدقة 100% بدون حسابات
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    if (viewableItems.length > 0) {
+      setCurrentIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  // إعدادات دقة الرؤية (عشان يحسب الكارت لما يظهر نصه على الأقل)
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
 
   return (
     <View style={styles.container}>
@@ -48,23 +61,23 @@ export default function OnboardingScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id.toString()}
-        onMomentumScrollEnd={(event) => {
-          const index = Math.round(event.nativeEvent.contentOffset.x / width);
-          setCurrentIndex(index);
-        }}
-        // مهم جداً للاتجاه في الـ Android
-        style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }}
+        
+        // ✅ التغيير هنا: شلنا onMomentumScrollEnd واستخدمنا دي بدالها
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        
+        // شلنا getItemLayout عشان نتجنب مشاكل الـ RTL في بعض الموبايلات
+        
         renderItem={({ item }) => (
-          // بنعكس المحتوى تاني عشان يظهر صح
-          <View style={[styles.slide, { transform: [{ scaleX: isRTL ? -1 : 1 }] }]}>
+          <View style={styles.slide}>
             <ImageBackground source={item.image} style={styles.image}>
               <LinearGradient
                 colors={['transparent', COLORS.background]}
                 style={styles.gradient}
               >
                 <View style={styles.textContainer}>
-                    <Text style={[styles.title, textAlignment]}>{item.title}</Text>
-                    <Text style={[styles.desc, textAlignment]}>{item.desc}</Text>
+                    <Text style={styles.title}>{item.title}</Text>
+                    <Text style={styles.desc}>{item.desc}</Text>
                 </View>
               </LinearGradient>
             </ImageBackground>
@@ -72,7 +85,6 @@ export default function OnboardingScreen() {
         )}
       />
 
-      {/* Pagination & Buttons */}
       <View style={styles.footer}>
         {/* Dots */}
         <View style={styles.paginator}>
@@ -81,8 +93,10 @@ export default function OnboardingScreen() {
                     key={index} 
                     style={[
                         styles.dot, 
-                        { backgroundColor: currentIndex === index ? COLORS.primary : COLORS.surfaceLight,
-                          width: currentIndex === index ? 20 : 10 }
+                        { 
+                          backgroundColor: currentIndex === index ? COLORS.primary : COLORS.surfaceLight,
+                          width: currentIndex === index ? 25 : 10 
+                        }
                     ]} 
                 />
             ))}
@@ -98,9 +112,9 @@ export default function OnboardingScreen() {
                 {currentIndex === SLIDES.length - 1 ? t('onb_start') : t('onb_next')}
             </Text>
             {currentIndex === SLIDES.length - 1 ? (
-                <Check size={20} color={COLORS.background} />
+                <Check size={20} color={COLORS.white} />
             ) : (
-                <ArrowRight size={20} color={COLORS.background} style={iconTransform} />
+                <ArrowIcon size={20} color={COLORS.white} />
             )}
         </TouchableOpacity>
       </View>
@@ -113,23 +127,19 @@ const styles = StyleSheet.create({
   slide: { width, height },
   image: { width: '100%', height: '100%', justifyContent: 'flex-end' },
   gradient: { height: '50%', justifyContent: 'flex-end', paddingBottom: 100 },
-  
   textContainer: { paddingHorizontal: 40, alignItems: 'center' },
-  title: { fontSize: 28, fontWeight: 'bold', color: COLORS.primary, marginBottom: 10 },
-  desc: { fontSize: 16, color: COLORS.textSecondary, lineHeight: 24 },
-
+  title: { fontSize: 28, fontWeight: 'bold', color: COLORS.white, marginBottom: 10, textAlign: 'center' },
+  desc: { fontSize: 16, color: COLORS.textSecondary, lineHeight: 24, textAlign: 'center' },
   footer: { 
     position: 'absolute', bottom: 40, left: 0, right: 0, 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
     paddingHorizontal: 30 
   },
-  
   paginator: { flexDirection: 'row', gap: 8 },
   dot: { height: 10, borderRadius: 5 },
-
   btn: { 
     backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 14, 
     borderRadius: 30, flexDirection: 'row', alignItems: 'center', gap: 8 
   },
-  btnText: { color: COLORS.background, fontWeight: 'bold', fontSize: 16 }
+  btnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 }
 });

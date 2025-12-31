@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, 
   Image, TextInput, StatusBar, I18nManager, Platform 
 } from 'react-native';
-import { Search, ArrowLeft, ArrowRight } from 'lucide-react-native'; // ArrowRight Added
+import { Search, ArrowLeft, ArrowRight } from 'lucide-react-native'; 
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../constants/theme';
@@ -11,16 +11,19 @@ import { SERVICES } from '../../constants/data';
 
 export default function ServicesScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   
-  // تحديد اتجاه النصوص والأيقونات ديناميكياً (نفس نظام الصفحة الرئيسية)
-  const isRTL = I18nManager.isRTL;
-  const textAlignment = { textAlign: 'left' }; // native start mapping
-  const iconTransform = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
+  // ✅ 1. بنشوف اللغة عشان السيرش بار بس
+  const isArabic = i18n.language === 'ar';
 
-  // دالة لرسم كارت الخدمة
+  // ✅ 2. ستايلات خاصة بالهيدر والسيرش بار فقط
+  const headerAlign = { textAlign: isArabic ? 'right' : 'left' };
+  const searchDir = { flexDirection: isArabic ? 'row-reverse' : 'row' };
+  
+  // ده عشان أيقونة السهم في الكروت (شكله حلو لما يتقلب)
+  const iconTransform = { transform: [{ scaleX: isArabic ? -1 : 1 }] };
+
   const renderServiceItem = ({ item }) => {
-    // بنجيب الترجمة بناءً على الـ ID بتاع الخدمة
     const title = t(`srv_${item.id}_title`); 
     const desc = t(`srv_${item.id}_desc`);
 
@@ -30,33 +33,30 @@ export default function ServicesScreen() {
         onPress={() => router.push({ pathname: '/service-details', params: { id: item.id } })}
         activeOpacity={0.8}
       >
-        {/* صورة الخدمة */}
         <View style={styles.imageContainer}>
             {item.image ? (
                 <Image source={item.image} style={styles.cardImage} resizeMode="cover" />
             ) : (
-                // لو مفيش صورة (زي خدمة التراخيص) بنحط لون خلفية
                 <View style={[styles.cardImage, { backgroundColor: COLORS.surfaceLight, alignItems: 'center', justifyContent: 'center' }]}>
                     <item.icon size={40} color={COLORS.primary} />
                 </View>
             )}
             
-            {/* الأيقونة العائمة فوق الصورة */}
+            {/* رجعنا مكان الأيقونة ثابت يمين زي كودك القديم */}
             <View style={styles.iconBadge}>
                 <item.icon size={20} color={COLORS.primary} />
             </View>
         </View>
 
-        {/* محتوى الكارت */}
+        {/* ⛔️ ملمسناش الكارت نهائي: هيفضل محاذاة للشمال زي ما كان مظبوط معاك */}
         <View style={styles.cardContent}>
-            <Text style={[styles.cardTitle, textAlignment]} numberOfLines={1}>{title}</Text>
-            <Text style={[styles.cardDesc, textAlignment]} numberOfLines={2}>{desc}</Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
+            <Text style={styles.cardDesc} numberOfLines={2}>{desc}</Text>
             
             <View style={styles.cardFooter}>
                 <Text style={styles.learnMore}>
                     {t('see_all') || 'More'} 
                 </Text>
-                {/* استخدمنا ArrowRight هنا عشان يبقى شكله زي "اقرأ المزيد ->" */}
                 <ArrowRight size={14} color={COLORS.primary} style={iconTransform} /> 
             </View>
         </View>
@@ -68,28 +68,29 @@ export default function ServicesScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
 
-      {/* 1. Header & Search */}
+      {/* ✅ 3. التعديل الوحيد هنا: الهيدر والبحث */}
       <View style={styles.headerContainer}>
-        <Text style={[styles.headerTitle, textAlignment]}>{t('services')}</Text>
+        {/* العنوان يجي يمين */}
+        <Text style={[styles.headerTitle, headerAlign]}>{t('services')}</Text>
         
-        {/* Search Bar - شكل احترافي */}
-        <View style={styles.searchBar}>
+        {/* شريط البحث: بنعكسه عشان العدسة والكتابة يبقوا يمين */}
+        <View style={[styles.searchBar, searchDir]}>
             <Search size={20} color={COLORS.textSecondary} style={{ marginHorizontal: 10 }} />
             <TextInput 
                 placeholder={t('search_placeholder')}
                 placeholderTextColor={COLORS.textSecondary}
-                style={[styles.searchInput, textAlignment]} 
+                // الكتابة جوه البحث يمين
+                style={[styles.searchInput, headerAlign]} 
             />
         </View>
       </View>
 
-      {/* 2. Services Grid */}
       <FlatList
         data={SERVICES}
         renderItem={renderServiceItem}
         keyExtractor={(item) => item.id.toString()}
-        numColumns={2} // عرض كارتين بجانب بعض
-        columnWrapperStyle={styles.columnWrapper} // مسافات بين العمودين
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 15 },
   
   searchBar: { 
-    flexDirection: 'row', alignItems: 'center', 
+    alignItems: 'center', // شيلنا flexDirection عشان بنحطه ديناميك فوق
     backgroundColor: COLORS.surface, 
     borderRadius: 12, height: 50, paddingHorizontal: 5,
     borderWidth: 1, borderColor: COLORS.border 
@@ -115,7 +116,7 @@ const styles = StyleSheet.create({
   columnWrapper: { justifyContent: 'space-between', marginBottom: 20 },
 
   card: { 
-    width: '48%', // عشان ياخد نص الشاشة مع مسافة صغيرة
+    width: '48%', 
     backgroundColor: COLORS.surface, 
     borderRadius: 20, 
     overflow: 'hidden',
@@ -127,16 +128,18 @@ const styles = StyleSheet.create({
   cardImage: { width: '100%', height: '100%' },
   
   iconBadge: {
-    position: 'absolute', top: 10, right: 10, // دايما يمين الصورة كشكل جمالي
+    position: 'absolute', top: 10, right: 10,
     width: 36, height: 36, borderRadius: 18, 
-    backgroundColor: COLORS.background, // لون داكن عشان يبرز
+    backgroundColor: COLORS.background, 
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: COLORS.border
   },
 
-  cardContent: { padding: 12, alignItems: 'flex-start' }, // alignItems مهم عشان الكلام يبدأ صح
-  cardTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 4 },
-  cardDesc: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 12, lineHeight: 16 },
+  // ⛔️ رجعت زي القديم بالظبط: flex-start و left
+  cardContent: { padding: 12, alignItems: 'flex-start' }, 
+  // رجعت textAlign left عشان ميبوظش
+  cardTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 4, textAlign: 'left' },
+  cardDesc: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 12, lineHeight: 16, textAlign: 'left' },
   
   cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 'auto' },
   learnMore: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
