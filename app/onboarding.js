@@ -7,8 +7,10 @@ import { useRouter } from 'expo-router';
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react-native'; 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../constants/theme';
 import { IMAGES } from '../constants/data';
+import { LoadingOverlay } from '../components/LoadingOverlay'; // 👈 1. استدعاء المكون
 
 const { width, height } = Dimensions.get('window');
 
@@ -16,36 +18,46 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(false); // 👈 2. متغير التحميل
   const { t } = useTranslation();
+  
   const isRTL = I18nManager.isRTL;
-  const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
+  const iconTransform = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
   const SLIDES = [
     { id: 1, title: t('onb_1_title'), desc: t('onb_1_desc'), image: IMAGES.hero1 },
     { id: 2, title: t('onb_2_title'), desc: t('onb_2_desc'), image: IMAGES.hero2 },
-    { id: 3, title: t('onb_3_title'), desc: t('onb_3_desc'), image: IMAGES.serviceConsult },
+    { id: 3, title: t('onb_3_title'), desc: t('onb_3_desc'), image: IMAGES.serviceConsult2 },
   ];
 
-  const handleNext = () => {
-    // لو لسه موصلناش لآخر شريحة
+  const handleNext = async () => {
     if (currentIndex < SLIDES.length - 1) {
       flatListRef.current.scrollToIndex({ 
         index: currentIndex + 1,
         animated: true 
       });
     } else {
-      router.replace('/(tabs)');
+      setLoading(true); // 👈 بدء التحميل عند الانتقال النهائي
+      try {
+        await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+        // تأخير بسيط عشان التحميل يظهر بشكل لطيف
+        await new Promise(r => setTimeout(r, 500));
+        router.replace('/(tabs)');
+      } catch (error) {
+        console.log(error);
+        router.replace('/(tabs)');
+      } finally {
+        setLoading(false); // 👈 إيقاف التحميل
+      }
     }
   };
 
-  // ✅ الحل السحري: دالة بتكتشف الكارت الظاهر حالياً بدقة 100% بدون حسابات
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
     if (viewableItems.length > 0) {
       setCurrentIndex(viewableItems[0].index);
     }
   }).current;
 
-  // إعدادات دقة الرؤية (عشان يحسب الكارت لما يظهر نصه على الأقل)
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
   }).current;
@@ -61,15 +73,11 @@ export default function OnboardingScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id.toString()}
-        
-        // ✅ التغيير هنا: شلنا onMomentumScrollEnd واستخدمنا دي بدالها
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
-        
-        // شلنا getItemLayout عشان نتجنب مشاكل الـ RTL في بعض الموبايلات
-        
+        style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }}
         renderItem={({ item }) => (
-          <View style={styles.slide}>
+          <View style={[styles.slide, { transform: [{ scaleX: isRTL ? -1 : 1 }] }]}>
             <ImageBackground source={item.image} style={styles.image}>
               <LinearGradient
                 colors={['transparent', COLORS.background]}
@@ -86,7 +94,6 @@ export default function OnboardingScreen() {
       />
 
       <View style={styles.footer}>
-        {/* Dots */}
         <View style={styles.paginator}>
             {SLIDES.map((_, index) => (
                 <View 
@@ -102,7 +109,6 @@ export default function OnboardingScreen() {
             ))}
         </View>
 
-        {/* Button */}
         <TouchableOpacity 
             style={styles.btn} 
             onPress={handleNext}
@@ -114,10 +120,13 @@ export default function OnboardingScreen() {
             {currentIndex === SLIDES.length - 1 ? (
                 <Check size={20} color={COLORS.white} />
             ) : (
-                <ArrowIcon size={20} color={COLORS.white} />
+                <ArrowRight size={20} color={COLORS.white} style={iconTransform} />
             )}
         </TouchableOpacity>
       </View>
+
+      {/* 👈 3. إضافة المكون في النهاية */}
+      <LoadingOverlay visible={loading} />
     </View>
   );
 }
@@ -141,5 +150,5 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 14, 
     borderRadius: 30, flexDirection: 'row', alignItems: 'center', gap: 8 
   },
-  btnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 }
+  btnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
 });

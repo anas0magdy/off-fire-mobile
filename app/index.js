@@ -1,27 +1,51 @@
 import { useEffect } from 'react';
-import { View, Text, StatusBar, StyleSheet } from 'react-native';
+import { View, Text, StatusBar, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-// 👇 تأكد إن المسار ده صح ويشير لملف الثيم الجديد اللي عملناه
 import { COLORS } from '../constants/theme'; 
 import { FireExtinguisher } from 'lucide-react-native';
+import { startAutoSync } from '../services/syncService';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // 👈 استدعاء المكتبة
 
 export default function SplashScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    // محاكاة تحميل.. ثم الانتقال للرئيسية
-    const timer = setTimeout(() => {
-      router.replace('/onboarding'); // تأكد إن الصفحة دي موجودة
-    }, 2000);
+    // تشغيل المزامنة التلقائية
+    const stopSync = startAutoSync();
 
-    return () => clearTimeout(timer);
+    const checkOnboarding = async () => {
+      try {
+        // ننتظر 2 ثانية عشان اللوجو ياخد وقته
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // نفحص هل العميل شاف الـ Onboarding قبل كده؟
+        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+
+        if (hasSeenOnboarding === 'true') {
+          // لو شافه، وديه على التابات الرئيسية علطول
+          router.replace('/(tabs)');
+        } else {
+          // لو أول مرة، وديه شرح التطبيق
+          router.replace('/onboarding');
+        }
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
+        // في حالة الخطأ، وديه للـ Onboarding كإجراء احتياطي
+        router.replace('/onboarding');
+      }
+    };
+
+    checkOnboarding();
+
+    return () => {
+      stopSync();
+    };
   }, []);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
       
-      {/* دائرة الأيقونة بشفافية عشان تليق مع الخلفية الداكنة */}
       <View style={styles.iconBox}>
         <FireExtinguisher size={60} color={COLORS.primary} />
       </View>
@@ -33,6 +57,9 @@ export default function SplashScreen() {
       <Text style={styles.subtitle}>
         ONLINE
       </Text>
+
+      {/* مؤشر تحميل عشان المستخدم يعرف إننا بنجهز البيانات */}
+      <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 30 }} />
     </View>
   );
 }
@@ -40,12 +67,12 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: COLORS.background, // الخلفية الموحدة #0B1120
+    backgroundColor: COLORS.background, 
     alignItems: 'center', 
     justifyContent: 'center' 
   },
   iconBox: { 
-    backgroundColor: 'rgba(255, 255, 255, 0.05)', // لون خفيف جداً ورا الأيقونة
+    backgroundColor: 'rgba(255, 255, 255, 0.05)', 
     padding: 24, 
     borderRadius: 24, 
     marginBottom: 24,
@@ -59,7 +86,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2 
   },
   subtitle: { 
-    color: COLORS.primary, // اللون الأحمر المميز
+    color: COLORS.primary, 
     fontSize: 16, 
     letterSpacing: 8, 
     fontWeight: 'bold', 

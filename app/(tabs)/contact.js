@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, Text, TouchableOpacity, StyleSheet, 
   StatusBar, Linking, ScrollView, I18nManager 
@@ -6,24 +6,42 @@ import {
 import { Phone, Mail, MapPin, Facebook, Instagram, Linkedin, Send, ArrowRight } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../constants/theme';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
 
 export default function ContactScreen() {
   const { t } = useTranslation();
   const isRTL = I18nManager.isRTL;
+  const [loading, setLoading] = useState(false);
 
   const textAlignment = { textAlign: 'left' };
-  const iconTransform = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
+  
+  // 👈 ده اللي هيعكس اتجاه الأيقونة للحاوية
+  const iconWrapperStyle = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
+  
+  // للأيقونات العادية (الأسهم)
+  const arrowTransform = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
-  // دالة لفتح الروابط (اتصال، إيميل، خريطة)
   const handlePress = (type, value) => {
     let url = '';
     switch (type) {
       case 'phone': url = `tel:${value}`; break;
       case 'email': url = `mailto:${value}`; break;
-      case 'map': url = 'https://maps.google.com/?q=Riyadh'; break; // رابط تجريبي للرياض
+      case 'map': url = 'https://maps.google.com/?q=Riyadh'; break; 
       default: break;
     }
     Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
+  };
+
+  const handleSendMessage = async () => {
+    try {
+      setLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      Linking.openURL('mailto:info@offfire.online');
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const ContactCard = ({ icon: Icon, title, desc, action, value }) => (
@@ -41,7 +59,7 @@ export default function ContactScreen() {
         <Text style={[styles.cardValue, textAlignment]}>{value}</Text>
       </View>
       <View style={styles.arrowBox}>
-        <ArrowRight size={20} color={COLORS.textSecondary} style={iconTransform} />
+        <ArrowRight size={20} color={COLORS.textSecondary} style={arrowTransform} />
       </View>
     </TouchableOpacity>
   );
@@ -94,13 +112,23 @@ export default function ContactScreen() {
           </View>
         </View>
 
-        {/* Send Message CTA */}
-        <TouchableOpacity style={styles.messageBtn} activeOpacity={0.8}>
+        {/* 👇👇👇 تعديل زر الإرسال 👇👇👇 */}
+        <TouchableOpacity 
+            style={styles.messageBtn} 
+            activeOpacity={0.8}
+            onPress={handleSendMessage}
+        >
            <Text style={styles.messageBtnText}>{t('send_message')}</Text>
-           <Send size={20} color={COLORS.background} style={iconTransform} />
+           {/* حطينا الأيقونة جوه View وطبقنا الستايل على ال View */}
+           <View style={[styles.iconWrapper, iconWrapperStyle]}>
+              <Send size={20} color={COLORS.background} />
+           </View>
         </TouchableOpacity>
+        {/* 👆👆👆 نهاية التعديل 👆👆👆 */}
 
       </ScrollView>
+
+      <LoadingOverlay visible={loading} type="submitting" />
     </View>
   );
 }
@@ -150,6 +178,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border
   },
 
+  // 👇 ستايل الزرار
   messageBtn: {
     backgroundColor: COLORS.primary,
     flexDirection: 'row',
@@ -160,5 +189,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 10, elevation: 5
   },
-  messageBtnText: { color: COLORS.background, fontSize: 16, fontWeight: 'bold' }
+  messageBtnText: { color: COLORS.background, fontSize: 16, fontWeight: 'bold' },
+  
+  // 👇 الحاوية الجديدة للأيقونة
+  iconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  }
 });

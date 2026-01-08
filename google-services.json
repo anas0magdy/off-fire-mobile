@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "980483324276",
+    "project_id": "offfireonline",
+    "storage_bucket": "offfireonline.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:980483324276:android:94a1dd54dfac8729881421",
+        "android_client_info": {
+          "package_name": "online.offfire.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzJI4etYhzCUZk3pfFt-hMkv1i4q2eMSk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:980483324276:android:5f6dddf0114dfa87881421",
+        "android_client_info": {
+          "package_name": "online.offfire.app.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzJI4etYhzCUZk3pfFt-hMkv1i4q2eMSk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

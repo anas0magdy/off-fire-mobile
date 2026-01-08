@@ -1,37 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, StyleSheet, 
-  StatusBar, I18nManager 
+  StatusBar, I18nManager, Alert 
 } from 'react-native';
-import { Ticket, Copy, Check, Clock } from 'lucide-react-native';
+import { Ticket, Copy, Check, Clock, Bell } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
-import * as Clipboard from 'expo-clipboard'; // استيراد مكتبة النسخ
+import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../constants/theme';
 import { OFFERS } from '../../constants/data';
+import { sendOfferNotification, checkNotificationStatus } from '../../services/notifications'; 
+import { LoadingOverlay } from '../../components/LoadingOverlay'; // 👈 New import
 
 export default function OffersScreen() {
   const { t } = useTranslation();
   const isRTL = I18nManager.isRTL;
   
-  // حالة عشان نغير شكل الزرار لما المستخدم ينسخ الكود
   const [copiedId, setCopiedId] = useState(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false); 
+  const [loading, setLoading] = useState(false); // 👈 New loading state
 
   const textAlignment = { textAlign: 'left' };
-  const flexDirection = { flexDirection: 'row' }; 
+  const flexDirection = { flexDirection: 'row' };
 
-  const handleCopy = async (code, id) => {
-    // 1. نسخ الكود للحافظة فعلياً
-    await Clipboard.setStringAsync(code);
-    
-    // 2. تغيير حالة الزرار
-    setCopiedId(id);
-    
-    // 3. رجع الزرار لطبيعته بعد ثانيتين
-    setTimeout(() => setCopiedId(null), 2000);
+  // Check notification status on mount
+  useEffect(() => {
+    checkNotificationStatus().then(status => {
+      setNotificationsEnabled(status.enabled);
+    });
+  }, []);
+
+  // Update handleCopy to trigger loading state
+  const handleCopy = async (code, id, title, desc) => {
+    try {
+      setLoading(true); // 👈 Start loading
+
+      // 1. Copy code to clipboard
+      await Clipboard.setStringAsync(code);
+      
+      // 2. Send notification if enabled
+      if (notificationsEnabled) {
+        const sent = await sendOfferNotification(title, desc, code);
+        if (!sent) {
+          Alert.alert('ملاحظة', 'لم يتم إرسال الإشعار. تأكد من تفعيل الإشعارات');
+        }
+      }
+      
+      // 3. Change button state
+      setCopiedId(id);
+      
+      // 4. Reset button state after 2 seconds
+      setTimeout(() => setCopiedId(null), 2000);
+
+    } catch (error) {
+      console.error('Copy failed', error);
+    } finally {
+      setLoading(false); // 👈 Stop loading
+    }
   };
 
   const renderOfferItem = ({ item }) => {
-    // ترجمة البيانات
     const title = item.id === 1 ? t('off_20_title') : t('off_free_title');
     const desc = item.id === 1 ? t('off_20_desc') : t('off_free_desc');
     
@@ -39,7 +66,7 @@ export default function OffersScreen() {
 
     return (
       <View style={styles.couponCard}>
-        {/* الجزء الأيسر: الأيقونة واللون المميز */}
+        {/* Left Part: Icon and distinct color */}
         <View style={styles.leftPart}>
             <View style={styles.iconCircle}>
                 <Ticket size={24} color={COLORS.background} />
@@ -47,7 +74,7 @@ export default function OffersScreen() {
             <View style={styles.verticalLine} />
         </View>
 
-        {/* الجزء الأيمن: التفاصيل */}
+        {/* Right Part: Details */}
         <View style={styles.rightPart}>
             <View style={{flex: 1, alignItems: 'flex-start'}}>
                 <Text style={[styles.offerTitle, textAlignment]}>{title}</Text>
@@ -59,13 +86,13 @@ export default function OffersScreen() {
                 </View>
             </View>
 
-            {/* زرار الكود */}
+            {/* Code Button */}
             <TouchableOpacity 
                 style={[
                     styles.codeBtn, 
                     isCopied && { backgroundColor: COLORS.success, borderColor: COLORS.success }
                 ]}
-                onPress={() => handleCopy(item.code, item.id)}
+                onPress={() => handleCopy(item.code, item.id, title, desc)}
                 activeOpacity={0.7}
             >
                 <Text style={[styles.codeText, isCopied && { color: 'white' }]}>
@@ -79,9 +106,9 @@ export default function OffersScreen() {
             </TouchableOpacity>
         </View>
 
-        {/* دوائر الزينة (عشان شكل الكوبون المقصوص) */}
-        <View style={[styles.circleCut, { top: -10, left: 70 }]} />
-        <View style={[styles.circleCut, { bottom: -10, left: 70 }]} />
+        {/* Decorative Circles */}
+        <View style={[styles.circleCut, { top: -10, left: '50%', marginLeft: -10 }]} />
+        <View style={[styles.circleCut, { bottom: -10, left: '50%', marginLeft: -10 }]} />
       </View>
     );
   };
@@ -90,12 +117,36 @@ export default function OffersScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
 
-      {/* Header */}
+      {/* Header - with notification button */}
       <View style={styles.headerContainer}>
-        <Text style={[styles.headerTitle, textAlignment]}>{t('offers_title')}</Text>
-        <Text style={[styles.headerSub, textAlignment]}>
-            {t('welcome')}
-        </Text>
+        <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+          <View>
+            <Text style={[styles.headerTitle, textAlignment]}>{t('offers_title')}</Text>
+            <Text style={[styles.headerSub, textAlignment]}>
+                {t('welcome')}
+            </Text>
+          </View>
+          
+          {/* Notification Status Button */}
+          <TouchableOpacity 
+            style={styles.notificationStatusBtn}
+            onPress={() => {
+              Alert.alert(
+                'حالة الإشعارات',
+                notificationsEnabled 
+                  ? 'الإشعارات مفعلة. ستتلقى إشعارات بالعروض الجديدة.' 
+                  : 'الإشعارات غير مفعلة. قم بتفعيلها من إعدادات التطبيق.',
+                [{ text: 'حسناً' }]
+              );
+            }}
+          >
+            <Bell size={20} color={notificationsEnabled ? COLORS.primary : COLORS.textSecondary} />
+            <View style={[
+              styles.notificationDot, 
+              { backgroundColor: notificationsEnabled ? COLORS.primary : COLORS.textSecondary }
+            ]} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -105,6 +156,9 @@ export default function OffersScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
+      
+      {/* 👈 Loading Overlay Component */}
+      <LoadingOverlay visible={loading} type="processing" />
     </View>
   );
 }
@@ -112,9 +166,46 @@ export default function OffersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   
-  headerContainer: { padding: 20, paddingTop: 60, paddingBottom: 10 },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', color: COLORS.textPrimary },
-  headerSub: { fontSize: 14, color: COLORS.textSecondary, marginTop: 5 },
+  headerContainer: { 
+    padding: 20, 
+    paddingTop: 60, 
+    paddingBottom: 10 
+  },
+  
+  headerTitle: { 
+    fontSize: 28, 
+    fontWeight: 'bold', 
+    color: COLORS.textPrimary 
+  },
+  
+  headerSub: { 
+    fontSize: 14, 
+    color: COLORS.textSecondary, 
+    marginTop: 5 
+  },
+
+  notificationStatusBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    position: 'relative',
+  },
+  
+  notificationDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: COLORS.background,
+  },
 
   listContent: { padding: 20 },
 
@@ -126,7 +217,8 @@ const styles = StyleSheet.create({
     height: 140,
     overflow: 'hidden',
     position: 'relative',
-    borderWidth: 1, borderColor: COLORS.border 
+    borderWidth: 1, 
+    borderColor: COLORS.border 
   },
 
   leftPart: {
@@ -137,10 +229,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 16, 
     borderBottomRightRadius: 16,
   },
+  
   iconCircle: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 40, 
+    height: 40, 
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center', justifyContent: 'center'
+    alignItems: 'center', 
+    justifyContent: 'center'
   },
   
   rightPart: {
@@ -151,11 +247,29 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start'
   },
 
-  offerTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 4 },
-  offerDesc: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 10 },
+  offerTitle: { 
+    fontSize: 16, 
+    fontWeight: 'bold', 
+    color: COLORS.textPrimary, 
+    marginBottom: 4 
+  },
   
-  validityBox: { alignItems: 'center', marginTop: 5 },
-  validityText: { fontSize: 10, color: COLORS.textSecondary, marginStart: 4 },
+  offerDesc: { 
+    fontSize: 12, 
+    color: COLORS.textSecondary, 
+    marginBottom: 10 
+  },
+  
+  validityBox: { 
+    alignItems: 'center', 
+    marginTop: 5 
+  },
+  
+  validityText: { 
+    fontSize: 10, 
+    color: COLORS.textSecondary, 
+    marginStart: 4 
+  },
 
   codeBtn: {
     flexDirection: 'row',
@@ -170,6 +284,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: -20
   },
+  
   codeText: {
     color: COLORS.primary,
     fontWeight: 'bold',
@@ -179,7 +294,8 @@ const styles = StyleSheet.create({
 
   circleCut: {
     position: 'absolute',
-    width: 20, height: 20,
+    width: 20, 
+    height: 20,
     borderRadius: 10,
     backgroundColor: COLORS.background,
     zIndex: 2

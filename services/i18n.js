@@ -2,7 +2,6 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
-import { I18nManager } from 'react-native';
 
 // استيراد ملفات الترجمة
 import ar from '../locales/ar.json';
@@ -22,17 +21,9 @@ const initI18n = async () => {
     savedLanguage = deviceLanguage === 'ar' ? 'ar' : 'en';
   }
 
-  // ضبط الاتجاه (RTL) بناءً على اللغة
-  const isRTL = savedLanguage === 'ar';
-  
-  // لو الاتجاه الحالي غلط، صلحه (هيحتاج ريستارت)
-  if (I18nManager.isRTL !== isRTL) {
-    I18nManager.allowRTL(isRTL);
-    I18nManager.forceRTL(isRTL);
-  }
-
   i18n.use(initReactI18next).init({
     resources,
+    compatibilityJSON: 'v3',
     lng: savedLanguage,
     fallbackLng: 'ar',
     interpolation: {

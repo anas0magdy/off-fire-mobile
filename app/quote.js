@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
   StatusBar, ScrollView, Modal, FlatList, KeyboardAvoidingView, 
   Platform, TouchableWithoutFeedback, Keyboard, I18nManager, Alert, ActivityIndicator 
 } from 'react-native';
-import { X, ChevronDown, CheckCircle, ArrowRight, ArrowLeft, Upload, FileText, Trash2 } from 'lucide-react-native';
+import { X, ChevronDown, CheckCircle, ArrowRight, ArrowLeft, Upload, FileText, Trash2, LogIn } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../constants/theme';
@@ -18,29 +18,43 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '../services/supabase';
 
+// الاستيرادات الموجودة مسبقاً
+import { useNetworkStatus } from '../services/network';
+import { OfflineStorage } from '../services/offlineStorage';
+import { AuthService } from '../services/auth';
+import { sendNewOrderNotification, checkNotificationStatus } from '../services/notifications';
+
 export default function QuoteScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   
-  // بنحدد اللغة عشان اتجاه الكتابة داخل الخانة فقط
+  // فحص الاتصال
+  const { isConnected, isInternetReachable } = useNetworkStatus();
+  const isOnline = isConnected && isInternetReachable;
+  
   const isArabic = i18n.language === 'ar';
 
-  // ✅ 1. ده ستايل الكتابة (جوه المستطيل) -> يمين في العربي
   const inputAlign = { 
     textAlign: isArabic ? 'right' : 'left',
     writingDirection: isArabic ? 'rtl' : 'ltr' 
   };
 
-  // ✅ 2. ده ستايل العناوين (Label) -> هنجبره يفضل شمال دائماً
   const labelAlign = { textAlign: 'left' }; 
-
-  // اتجاه الأيقونات (زي المرفقات والدروب داون)
   const rowDir = { flexDirection: isArabic ? 'row-reverse' : 'row' };
 
-  // Validation Schema
+  useEffect(() => {
+    checkNotificationStatus().then(status => {
+      setNotificationsEnabled(status.enabled);
+    });
+  }, []);
+
+  // ✅ 1. تعديل الـ Schema لإضافة البريد الإلكتروني
   const quoteSchema = z.object({
     name: z.string().min(3, { message: isArabic ? "الاسم قصير جداً" : "Name too short" }),
     phone: z.string().regex(/^(05)(5|0|3|6|4|9|1|8|7)([0-9]{7})$/, { message: isArabic ? "رقم جوال غير صحيح" : "Invalid phone number" }),
+    // الإيميل إجباري للجميع (لو مسجل هيتملي لوحده، لو زائر هيكتبه)
+    email: z.string().email({ message: isArabic ? "البريد الإلكتروني غير صحيح" : "Invalid email address" }),
     serviceId: z.number({ required_error: isArabic ? "يجب اختيار خدمة" : "Service is required" }),
     building: z.string().optional(),
     notes: z.string().optional(),
@@ -48,7 +62,7 @@ export default function QuoteScreen() {
 
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm({
     resolver: zodResolver(quoteSchema),
-    defaultValues: { name: '', phone: '', serviceId: undefined, building: '', notes: '' }
+    defaultValues: { name: '', phone: '', email: '', serviceId: undefined, building: '', notes: '' }
   });
 
   const selectedServiceId = watch("serviceId");
@@ -57,12 +71,49 @@ export default function QuoteScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
+  
+  const [successData, setSuccessData] = useState({ visible: false, ref: '', orderId: null, isGuest: false });
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const [successData, setSuccessData] = useState({ visible: false, ref: '' });
+  // فحص المستخدم عند الفتح
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  const checkUser = async () => {
+    try {
+      // بنجيب بيانات البروفايل
+      const profile = await AuthService.getCurrentProfile();
+      // وبنجيب بيانات اليوزر عشان الإيميل (لأن البروفايل مفيهوش إيميل غالباً)
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (profile && user) {
+        setCurrentUser({ ...profile, email: user.email }); // دمجنا الإيميل مع البروفايل
+        setValue('name', profile.full_name || '');
+        setValue('phone', profile.phone || '');
+        setValue('email', user.email || ''); // ✅ ملء الإيميل تلقائياً
+      }
+    } catch (e) {
+      console.log('User check error:', e);
+    }
+  };
 
   const handleCloseSuccess = () => {
-    setSuccessData({ visible: false, ref: '' }); 
+    setSuccessData({ visible: false, ref: '', orderId: null, isGuest: false }); 
     router.back();
+  };
+
+  const handleSignUpNow = () => {
+    const emailUsed = watch('email'); // بناخد الإيميل اللي كتبه في الفورم
+    setSuccessData({ visible: false, ref: '', orderId: null, isGuest: false });
+    // الذهاب للتسجيل مع تمرير الإيميل ورقم الطلب
+    router.push({ 
+      pathname: '/auth/signup', 
+      params: { 
+        linkedOrderId: successData.orderId,
+        email: emailUsed // عشان يملأ خانة الإيميل هناك أوتوماتيك
+      } 
+    });
   };
 
   const pickDocument = async () => {
@@ -88,12 +139,49 @@ export default function QuoteScreen() {
   };
 
   const onSubmit = async (formData) => {
+    // فحص الاتصال قبل الإرسال
+    if (!isOnline) {
+      const offlineRequest = {
+        client_name: formData.name,
+        phone: formData.phone,
+        guest_email: !currentUser ? formData.email : null, // ✅ حفظ الإيميل أوفلاين لو زائر
+        service_id: formData.serviceId,
+        service_name: t(`srv_${formData.serviceId}_title`),
+        building_type: formData.building,
+        notes: formData.notes,
+        file_url: attachedFile ? attachedFile.uri : null,
+      };
+
+      const { success, id } = await OfflineStorage.saveOfflineRequest(offlineRequest);
+      
+      if (success) {
+        Alert.alert(
+          "تم الحفظ محلياً",
+          "سيتم إرسال الطلب تلقائياً عند عودة الاتصال",
+          [{ 
+            text: "حسناً", 
+            onPress: () => {
+              setSuccessData({ 
+                visible: true, 
+                ref: `#OFFLINE-${id}`,
+                message: "طلبك مخزن محلياً وسيتم إرساله عند عودة الإنترنت"
+              });
+            }
+          }]
+        );
+      } else {
+        Alert.alert("خطأ", "فشل حفظ الطلب محلياً. حاول مرة أخرى");
+      }
+      return; 
+    }
+
     setIsSubmitting(true);
     try {
       let fileUrl = null;
       if (attachedFile) fileUrl = await uploadFileToSupabase(attachedFile);
 
-      const { data, error } = await supabase.from('orders').insert([{
+      // ✅ تعديل الـ Payload ليتناسب مع الزائر والمسجل
+      const orderPayload = {
         client_name: formData.name,
         phone: formData.phone,
         service_id: formData.serviceId,
@@ -101,18 +189,37 @@ export default function QuoteScreen() {
         building_type: formData.building,
         notes: formData.notes,
         file_url: fileUrl,
-        status: 'pending'
-      }]).select();
+        status: 'pending',
+        // اللوجيك الجديد:
+        user_id: currentUser ? currentUser.id : null, // لو زائر ابعت null
+        guest_email: currentUser ? null : formData.email // لو زائر ابعت الإيميل هنا
+      };
+
+      const { data, error } = await supabase.from('orders').insert([orderPayload]).select();
 
       if (error) throw error;
 
       if (data && data.length > 0) {
         const finalRef = `#OFF-${data[0].id}`;
-        setSuccessData({ visible: true, ref: finalRef });
+        
+        if (notificationsEnabled) {
+          await sendNewOrderNotification(
+            data[0].id, 
+            formData.name, 
+            t(`srv_${formData.serviceId}_title`)
+          );
+        }
+        
+        setSuccessData({ 
+          visible: true, 
+          ref: finalRef, 
+          orderId: data[0].id,
+          isGuest: !currentUser // ✅ تحديد إذا كان زائر عشان نظهرله رسالة التسجيل
+        });
       }
 
     } catch (error) {
-      Alert.alert("Error", "Failed to submit request");
+      Alert.alert("خطأ", "فشل إرسال الطلب. تحقق من اتصالك بالإنترنت");
       console.log(error);
     } finally {
       setIsSubmitting(false);
@@ -124,7 +231,6 @@ export default function QuoteScreen() {
       <View style={[styles.modalIconBox, { backgroundColor: COLORS.surfaceLight }]}>
         <item.icon size={20} color={COLORS.primary} />
       </View>
-      {/* القائمة المنسدلة برضه هنسيبها شمال عشان التناسق */}
       <Text style={[styles.modalText, { textAlign: 'left' }]}>{t(`srv_${item.id}_title`)}</Text>
       {selectedServiceId === item.id && <CheckCircle size={18} color={COLORS.success} />}
     </TouchableOpacity>
@@ -155,6 +261,7 @@ export default function QuoteScreen() {
                         style={[styles.input, errors.name && styles.inputError, inputAlign]} 
                         onBlur={onBlur} onChangeText={onChange} value={value} 
                         placeholder={t('ph_name')} placeholderTextColor={COLORS.textTertiary}
+                        editable={!currentUser} 
                     />
                   )} />
                 {errors.name && <Text style={[styles.errorText, labelAlign]}>{errors.name.message}</Text>}
@@ -173,13 +280,33 @@ export default function QuoteScreen() {
                 {errors.phone && <Text style={[styles.errorText, labelAlign]}>{errors.phone.message}</Text>}
             </View>
 
+            {/* ✅ Email (تمت إضافته هنا) */}
+            <View style={styles.inputGroup}>
+                <Text style={[styles.label, labelAlign]}>{isArabic ? 'البريد الإلكتروني' : 'Email Address'} <Text style={{color: COLORS.error}}>*</Text></Text>
+                <Controller control={control} name="email" render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput 
+                        style={[
+                          styles.input, 
+                          errors.email && styles.inputError, 
+                          inputAlign, 
+                          currentUser && { backgroundColor: COLORS.surfaceLight, color: COLORS.textSecondary } // شكل مختلف لو هو مسجل
+                        ]} 
+                        onBlur={onBlur} 
+                        onChangeText={onChange} 
+                        value={value} 
+                        keyboardType="email-address" 
+                        autoCapitalize="none"
+                        placeholder={isArabic ? 'example@mail.com' : 'example@mail.com'} 
+                        placeholderTextColor={COLORS.textTertiary}
+                        editable={!currentUser} // ممنوع التعديل لو مسجل دخول
+                    />
+                  )} />
+                {errors.email && <Text style={[styles.errorText, labelAlign]}>{errors.email.message}</Text>}
+            </View>
+
             {/* Service Dropdown */}
             <View style={styles.inputGroup}>
                 <Text style={[styles.label, labelAlign]}>{t('lbl_service')} <Text style={{color: COLORS.error}}>*</Text></Text>
-                
-                {/* 1. rowDir: بيعكس الأيقونة والكلمة
-                   2. inputAlign: بيخلي الكلمة نفسها تروح يمين
-                */}
                 <TouchableOpacity style={[styles.dropdownBtn, errors.serviceId && styles.inputError, rowDir]} onPress={() => setModalVisible(true)}>
                     <Text style={[styles.dropdownText, !selectedService && { color: COLORS.textTertiary }, inputAlign]}>
                         {selectedService ? t(`srv_${selectedService.id}_title`) : t('select_service')}
@@ -228,11 +355,20 @@ export default function QuoteScreen() {
                   )} />
             </View>
 
-            {/* Submit Button */}
-            <TouchableOpacity style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmit(onSubmit)} disabled={isSubmitting}>
-                <Text style={styles.submitText}>{isSubmitting ? t('sending') : t('submit_quote')}</Text>
-                {!isSubmitting && (isArabic ? <ArrowLeft size={20} color={COLORS.dark} /> : <ArrowRight size={20} color={COLORS.dark} />)}
-                {isSubmitting && <ActivityIndicator size="small" color={COLORS.dark} />}
+            <TouchableOpacity 
+              style={[
+                styles.submitBtn, 
+                isSubmitting && { opacity: 0.7 },
+                !isOnline && { backgroundColor: COLORS.textSecondary, opacity: 0.5 }
+              ]} 
+              onPress={handleSubmit(onSubmit)} 
+              disabled={isSubmitting}
+            >
+              <Text style={styles.submitText}>
+                {!isOnline ? "غير متصل" : (isSubmitting ? t('sending') : t('submit_quote'))}
+              </Text>
+              {!isSubmitting && isOnline && (isArabic ? <ArrowLeft size={20} color={COLORS.dark} /> : <ArrowRight size={20} color={COLORS.dark} />)}
+              {isSubmitting && <ActivityIndicator size="small" color={COLORS.dark} />}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -256,18 +392,46 @@ export default function QuoteScreen() {
         <View style={styles.successOverlay}>
             <View style={styles.successCard}>
                 <View style={styles.successIcon}><CheckCircle size={40} color={COLORS.success} /></View>
-                <Text style={styles.successTitle}>{t('success_title')}</Text>
-                
-                <Text style={[styles.successDesc, { fontSize: 18, color: COLORS.primary, fontWeight: 'bold', marginVertical: 8 }]}>
-                    {isArabic ? `رقم الطلب: ${successData.ref}` : `Order Ref: ${successData.ref}`}
+                <Text style={styles.successTitle}>
+                  {successData.ref.startsWith('#OFFLINE') ? "تم الحفظ محلياً" : t('success_title')}
                 </Text>
                 
-                <Text style={styles.successDesc}>{t('success_desc')}</Text>
+                <Text style={[styles.successDesc, { fontSize: 18, color: COLORS.primary, fontWeight: 'bold', marginVertical: 8 }]}>
+                  {isArabic ? `رقم الطلب: ${successData.ref}` : `Order Ref: ${successData.ref}`}
+                </Text>
+                
+                {/* عرض رسالة النجاح للجميع (زوار ومسجلين) عشان الكلام ميكونش ناقص */}
+            <Text style={styles.successDesc}>
+              {successData.message || t('request_sent_success')}
+            </Text>
 
-                <TouchableOpacity style={styles.successBtn} onPress={handleCloseSuccess}>
-                    <Text style={styles.successBtnText}>OK</Text>
+            {/* عرض خيار التسجيل للزوار فقط */}
+            {successData.isGuest ? (
+              <View style={styles.guestPromoBox}>
+                <Text style={styles.guestPromoText}>
+                  هل تريد متابعة حالة الطلب وتلقي عروض الأسعار والمقارنة بينها عبر التطبيق؟
+                </Text>
+                
+                <TouchableOpacity style={styles.signupNowBtn} onPress={handleSignUpNow}>
+                  <Text style={styles.signupNowText}>نعم، إنشاء حساب منشأة</Text>
+                  <LogIn size={16} color={COLORS.white} />
                 </TouchableOpacity>
-            </View>
+
+                {/* زرار لا شكراً المحسن */}
+                <TouchableOpacity 
+                  onPress={handleCloseSuccess} 
+                  style={styles.laterBtn} // ستايل جديد للزرار
+                >
+                  <Text style={styles.laterText}>لا، شكراً (إغلاق)</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // زرار الإغلاق للمستخدم المسجل
+              <TouchableOpacity style={styles.successBtn} onPress={handleCloseSuccess}>
+                  <Text style={styles.successBtnText}>حسناً</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </Modal>
     </KeyboardAvoidingView>
@@ -289,7 +453,6 @@ const styles = StyleSheet.create({
   errorText: { color: COLORS.error, fontSize: 12, marginTop: 4 },
   textArea: { height: 100, paddingTop: 14 },
   dropdownBtn: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, justifyContent: 'space-between', alignItems: 'center' },
-  // 👇 ضفت هنا flex: 1 عشان النص ياخد راحته في التمدد
   dropdownText: { fontSize: 14, color: COLORS.textPrimary, flex: 1 },
   submitBtn: { backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   submitText: { color: COLORS.dark, fontSize: 16, fontWeight: 'bold' },
@@ -312,7 +475,19 @@ const styles = StyleSheet.create({
   successCard: { backgroundColor: COLORS.surface, width: '100%', padding: 30, borderRadius: 24, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   successIcon: { width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(16, 185, 129, 0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   successTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 10, textAlign: 'center' },
-  successDesc: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 24 },
-  successBtn: { backgroundColor: COLORS.surfaceLight, paddingHorizontal: 30, paddingVertical: 12, borderRadius: 10 },
-  successBtnText: { color: COLORS.textPrimary, fontWeight: 'bold' }
+  
+  // ✅ تم التعديل: زيادة المسافات عشان الكلام ميبقاش مقطوع
+  successDesc: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 20, lineHeight: 22, paddingHorizontal: 10 },
+  
+  successBtn: { backgroundColor: COLORS.surfaceLight, paddingHorizontal: 30, paddingVertical: 12, borderRadius: 10, marginTop: 10 },
+  successBtnText: { color: COLORS.textPrimary, fontWeight: 'bold' },
+
+  guestPromoBox: { width: '100%', alignItems: 'center', marginTop: 5, paddingTop: 15, borderTopWidth: 1, borderTopColor: COLORS.border },
+  guestPromoText: { color: COLORS.textPrimary, textAlign: 'center', marginBottom: 20, fontSize: 14, lineHeight: 22, fontWeight: '500' },
+  signupNowBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', justifyContent: 'center', marginBottom: 12 },
+  signupNowText: { color: COLORS.white, fontWeight: 'bold', fontSize: 15 },
+  
+  // ✅ تم التعديل: ستايل جديد لزرار لا شكراً
+  laterBtn: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10, width: '100%', alignItems: 'center' },
+  laterText: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' } // شلت الخط وخليت اللون أهدى
 });

@@ -3,11 +3,13 @@ import { Zap, ShieldCheck, Filter, FileText, Users, CheckCircle, Clock, Award, L
 // 1. الصور
 export const IMAGES = {
   hero1: require('../assets/images/hero-1.jpg'), 
-  hero2: require('../assets/images/hero-2.jpg'), 
+  hero2: require('../assets/images/hero-2.jpg'),
   serviceFire: require('../assets/images/service-fire.jpg'),
   serviceAlarm: require('../assets/images/service-alarm.jpg'),
   serviceEquip: require('../assets/images/service-equipment.jpg'),
   serviceConsult: require('../assets/images/service-consulting.jpg'),
+  serviceConsult2: require('../assets/images/service-consulting2.jpg'),
+  serviceLicense: require('../assets/images/service-License.jpg'),
   logo: require('../assets/images/logo.png'), 
 };
 
@@ -97,7 +99,7 @@ export const SERVICES = [
     desc: "إصدار وتجديد", 
     longDesc: "ننهي عنك الإجراءات المعقدة. خدمة إصدار وتجديد رخص الدفاع المدني (سلامة)، وفتح الملفات للمنشآت الجديدة، وحل المخالفات والملاحظات لضمان استمرارية عملك بشكل قانوني.",
     features: ["إصدار رخصة الدفاع المدني", "تجديد التراخيص", "عقود الصيانة (سلامة)", "استخراج شهادة الوقاية"],
-    image: null, 
+    image: IMAGES.serviceLicense, 
     icon: FileText 
   }
 ];
